@@ -1366,6 +1366,14 @@ elseif(WINDOWS)
 
   file(GLOB CORE_SOURCES ${SDL2_SOURCE_DIR}/src/core/windows/*.c)
   set(SOURCE_FILES ${SOURCE_FILES} ${CORE_SOURCES})
+  if(WINDOWS_STORE)
+    file(GLOB WINRT_CORE_SOURCES ${SDL2_SOURCE_DIR}/src/core/winrt/*.cpp)
+    list(APPEND WINRT_CORE_SOURCES ${SDL2_SOURCE_DIR}/src/render/direct3d11/SDL_render_winrt.cpp)
+    set(SOURCE_FILES ${SOURCE_FILES} ${WINRT_CORE_SOURCES})
+    foreach(WINRT_SOURCE ${WINRT_CORE_SOURCES})
+      set_source_files_properties(${WINRT_SOURCE} PROPERTIES COMPILE_FLAGS "/ZW")
+    endforeach()
+  endif()
 
   if(MSVC)
     # Prevent codegen that would use the VC runtime libraries.
@@ -1411,11 +1419,20 @@ elseif(WINDOWS)
       check_include_file(xinput.h HAVE_XINPUT_H)
     endif()
 
-    check_include_file(d3d9.h HAVE_D3D_H)
+    check_c_source_compiles("
+      #include <d3d9.h>
+      IDirect3DDevice9 *d;
+      int main(int argc, char **argv) { }" HAVE_D3D_H)
     check_include_file(d3d11_1.h HAVE_D3D11_H)
     check_include_file(ddraw.h HAVE_DDRAW_H)
-    check_include_file(dsound.h HAVE_DSOUND_H)
-    check_include_file(dinput.h HAVE_DINPUT_H)
+    check_c_source_compiles("
+      #include <dsound.h>
+      LPDIRECTSOUND p;
+      int main(int argc, char **argv) { }" HAVE_DSOUND_H)
+    check_c_source_compiles("
+      #include <dinput.h>
+      DIDEVICEINSTANCE d;
+      int main(int argc, char **argv) { } " HAVE_DINPUT_H)
     check_include_file(dxgi.h HAVE_DXGI_H)
     if(HAVE_D3D_H OR HAVE_D3D11_H OR HAVE_DDRAW_H OR HAVE_DSOUND_H OR HAVE_DINPUT_H)
       set(HAVE_DIRECTX TRUE)
@@ -1431,24 +1448,31 @@ elseif(WINDOWS)
   # headers needed elsewhere
   check_include_file(mmdeviceapi.h HAVE_MMDEVICEAPI_H)
   check_include_file(audioclient.h HAVE_AUDIOCLIENT_H)
-  check_include_file(sensorsapi.h HAVE_SENSORSAPI_H)
+  check_c_source_compiles("
+    #include <sensorsapi.h>
+    SENSOR_ID s;
+    int main(int argc, char **argv) { }" HAVE_SENSORSAPI_H)
 
   if(SDL_AUDIO)
-    set(SDL_AUDIO_DRIVER_WINMM 1)
-    file(GLOB WINMM_AUDIO_SOURCES ${SDL2_SOURCE_DIR}/src/audio/winmm/*.c)
-    set(SOURCE_FILES ${SOURCE_FILES} ${WINMM_AUDIO_SOURCES})
-    set(HAVE_SDL_AUDIO TRUE)
+    if(NOT WINDOWS_STORE)
+      set(SDL_AUDIO_DRIVER_WINMM 1)
+      file(GLOB WINMM_AUDIO_SOURCES ${SDL2_SOURCE_DIR}/src/audio/winmm/*.c)
+      set(SOURCE_FILES ${SOURCE_FILES} ${WINMM_AUDIO_SOURCES})
+      set(HAVE_SDL_AUDIO TRUE)
+    endif()
 
     if(HAVE_DSOUND_H)
       set(SDL_AUDIO_DRIVER_DSOUND 1)
       file(GLOB DSOUND_AUDIO_SOURCES ${SDL2_SOURCE_DIR}/src/audio/directsound/*.c)
       set(SOURCE_FILES ${SOURCE_FILES} ${DSOUND_AUDIO_SOURCES})
+      set(HAVE_SDL_AUDIO TRUE)
     endif()
 
     if(WASAPI AND HAVE_AUDIOCLIENT_H AND HAVE_MMDEVICEAPI_H)
       set(SDL_AUDIO_DRIVER_WASAPI 1)
       file(GLOB WASAPI_AUDIO_SOURCES ${SDL2_SOURCE_DIR}/src/audio/wasapi/*.c)
       set(SOURCE_FILES ${SOURCE_FILES} ${WASAPI_AUDIO_SOURCES})
+      set(HAVE_SDL_AUDIO TRUE)
     endif()
   endif()
 
@@ -1457,9 +1481,18 @@ elseif(WINDOWS)
     if(NOT SDL_LOADSO)
       message_error("SDL_VIDEO requires SDL_LOADSO, which is not enabled")
     endif()
-    set(SDL_VIDEO_DRIVER_WINDOWS 1)
-    file(GLOB WIN_VIDEO_SOURCES ${SDL2_SOURCE_DIR}/src/video/windows/*.c)
-    set(SOURCE_FILES ${SOURCE_FILES} ${WIN_VIDEO_SOURCES})
+    if(WINDOWS_STORE)
+      set(SDL_VIDEO_DRIVER_WINRT 1)
+      file(GLOB WINRT_VIDEO_SOURCES ${SDL2_SOURCE_DIR}/src/video/winrt/*.cpp)
+      foreach(WINRT_SOURCE ${WINRT_VIDEO_SOURCES})
+        set_source_files_properties(${WINRT_SOURCE} PROPERTIES COMPILE_FLAGS "/ZW")
+      endforeach()
+      set(SOURCE_FILES ${SOURCE_FILES} ${WINRT_VIDEO_SOURCES})
+    else()
+      set(SDL_VIDEO_DRIVER_WINDOWS 1)
+      file(GLOB WIN_VIDEO_SOURCES ${SDL2_SOURCE_DIR}/src/video/windows/*.c)
+      set(SOURCE_FILES ${SOURCE_FILES} ${WIN_VIDEO_SOURCES})
+    endif()
 
     if(RENDER_D3D AND HAVE_D3D_H)
       set(SDL_VIDEO_RENDER_D3D 1)
@@ -1503,9 +1536,16 @@ elseif(WINDOWS)
   endif()
 
   if(SDL_FILESYSTEM)
-    set(SDL_FILESYSTEM_WINDOWS 1)
-    file(GLOB FILESYSTEM_SOURCES ${SDL2_SOURCE_DIR}/src/filesystem/windows/*.c)
-    set(SOURCE_FILES ${SOURCE_FILES} ${FILESYSTEM_SOURCES})
+    if(WINDOWS_STORE)
+      set(SDL_FILESYSTEM_WINRT 1)
+      set(FILESYSTEM_SOURCES ${SDL2_SOURCE_DIR}/src/filesystem/winrt/SDL_sysfilesystem.cpp)
+      set_source_files_properties(${FILESYSTEM_SOURCES} PROPERTIES COMPILE_FLAGS "/ZW")
+      set(SOURCE_FILES ${SOURCE_FILES} ${FILESYSTEM_SOURCES})
+    else()
+      set(SDL_FILESYSTEM_WINDOWS 1)
+      file(GLOB FILESYSTEM_SOURCES ${SDL2_SOURCE_DIR}/src/filesystem/windows/*.c)
+      set(SOURCE_FILES ${SOURCE_FILES} ${FILESYSTEM_SOURCES})
+    endif()
     set(HAVE_SDL_FILESYSTEM TRUE)
   endif()
 

@@ -1073,7 +1073,7 @@ endmacro()
 # Check for HIDAPI joystick drivers. This is currently a Unix thing, not Windows or macOS!
 macro(CheckHIDAPI)
   if(HIDAPI)
-    if(HIDAPI_SKIP_LIBUSB)
+    if(HIDAPI_SKIP_LIBUSB AND NOT WINDOWS_STORE)
       set(HAVE_HIDAPI TRUE)
     else()
       set(HAVE_HIDAPI FALSE)
